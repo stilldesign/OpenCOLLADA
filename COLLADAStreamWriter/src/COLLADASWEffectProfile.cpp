@@ -201,8 +201,13 @@ namespace COLLADASW
 
 						const String& childElement = texture.getChildElementName();
 
+						// For some reason getChildElementName isn't returning what I set, I only need to hack in diffuse for now though
+						String childElement2 = childElement;
+						if (childElement2 == "")
+							childElement2 = "diffuse";
+
 						// Add the texture
-						addColorOrTexture( childElement, entry.colorOrTexture, entry.elementSid, entry.attributes  );
+						addColorOrTexture( childElement2, entry.colorOrTexture, entry.elementSid, entry.attributes  );
 					}
 				}
 
@@ -471,9 +476,22 @@ namespace COLLADASW
 
     void EffectProfile::setDiffuse( const ColorOrTexture& diffuse, const bool useDefaultSid /*= false*/, const String& sid /*= "" */ )
     {
-        mDiffuse = diffuse;
-        if ( useDefaultSid ) mDiffuseSid = CSWC::CSW_ELEMENT_DIFFUSE;
-        else mDiffuseSid = sid;
+		// Already got a diffuse?
+		// For my use, we'll assume this means a composite material is in the diffuse slot of the standard material (i.e. my graffiti texture)
+		if (mDiffuse.isValid())
+		{
+			ExtraColorOrTextureEntry x;
+			x.colorOrTexture = diffuse;
+
+			addExtraTechniqueColorOrTexture(diffuse,
+				StringPairList(),
+				"",
+				"composite");
+		}
+
+		mDiffuse = diffuse;
+		if (useDefaultSid) mDiffuseSid = CSWC::CSW_ELEMENT_DIFFUSE;
+		else mDiffuseSid = sid;
     }
 
     const String& EffectProfile::getDiffuseDefaultSid()
@@ -590,7 +608,7 @@ namespace COLLADASW
         return CSWC::CSW_ELEMENT_INDEX_OF_REFRACTION;
     }
 
-    void EffectProfile::addExtraTechniqueColorOrTexture( const ColorOrTexture& colorOrTexture, const StringPairList& attributes , const String& sid /*= "" */)
+    void EffectProfile::addExtraTechniqueColorOrTexture( const ColorOrTexture& colorOrTexture, const StringPairList& attributes , const String& sid /*= "" */, String nodeName)
     {
 		ExtraColorOrTextureEntry entry;
 		entry.colorOrTexture = colorOrTexture;
@@ -599,7 +617,8 @@ namespace COLLADASW
 		if ( entry.colorOrTexture.isTexture() )
 		{
 			const String& profileName = entry.colorOrTexture.getTexture().getProfileName();
-	        mExtraTechniqueColorOrTextureEntries[profileName].push_back( entry );
+
+			mExtraTechniqueColorOrTextureEntries[nodeName].push_back(entry);
 		}
     }
 } //namespace COLLADASW

@@ -356,7 +356,7 @@ namespace COLLADASW
         * @param childElement Name of the colorOrTexture child element.
         * @param colorOrTexture The colorOrTexture to set.
         */
-        void addExtraTechniqueColorOrTexture ( const ColorOrTexture& colorOrTexture, const StringPairList& attributes = StringPairList(), const String& sid = "" );
+        void addExtraTechniqueColorOrTexture ( const ColorOrTexture& colorOrTexture, const StringPairList& attributes = StringPairList(), const String& sid = "", String nodeName = "" );
 
         /** Add the sampler required by @a colorOrTexture to the stream*/
         void addSampler ( const ColorOrTexture &colorOrTexture );
