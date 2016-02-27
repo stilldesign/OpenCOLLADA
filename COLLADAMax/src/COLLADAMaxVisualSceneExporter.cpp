@@ -211,11 +211,16 @@ namespace COLLADAMax
 			{
 				COLLADASW::InstanceGeometry instanceGeometry ( mSW );
 
-				String geometryId = GeometriesExporter::getGeometryId(*mDocumentExporter->getExportedObjectExportNode(ObjectIdentifier(exportNode->getInitialPose())));
-				assert( !geometryId.empty() );
+				auto node = mDocumentExporter->getExportedObjectExportNode(ObjectIdentifier(exportNode->getInitialPose()));
 
-				instanceGeometry.setUrl ( "#" + geometryId );
-				instanceGeometry.add();
+				if (node != NULL)
+				{
+					String geometryId = GeometriesExporter::getGeometryId(*node);
+					assert( !geometryId.empty() );
+
+					instanceGeometry.setUrl ( "#" + geometryId );
+					instanceGeometry.add();
+				}
 			} 
 			else if ( exportNode->getType() == ExportNode::CAMERA )
 			{
