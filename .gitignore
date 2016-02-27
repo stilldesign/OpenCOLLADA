@@ -19,3 +19,5 @@ CMakeCache.txt
 CMakeScripts/
 /bin/
 /lib/
+/COLLADAMax/scripts/.COLLADAMaxVersionInfo.h
+/COLLADAMax/COLLADAMax.VC.opendb
