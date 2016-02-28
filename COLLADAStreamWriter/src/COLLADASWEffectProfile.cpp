@@ -489,9 +489,13 @@ namespace COLLADASW
 				"composite");
 		}
 
-		mDiffuse = diffuse;
-		if (useDefaultSid) mDiffuseSid = CSWC::CSW_ELEMENT_DIFFUSE;
-		else mDiffuseSid = sid;
+		// Already got a diffuse? Leave it as the first one, rather than last-man-wins
+		if (!mDiffuse.isTexture())
+		{
+			mDiffuse = diffuse;
+			if (useDefaultSid) mDiffuseSid = CSWC::CSW_ELEMENT_DIFFUSE;
+			else mDiffuseSid = sid;
+		}
     }
 
     const String& EffectProfile::getDiffuseDefaultSid()
