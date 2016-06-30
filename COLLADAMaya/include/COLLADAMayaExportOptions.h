@@ -37,6 +37,9 @@ namespace COLLADAMaya
         /** General export options  */
         /****************************/
 
+		/** True, if we want to export LOD from LODGroup. */
+		static bool mLOD;
+
         /** True, if we should a write transform matrix. */
         static bool mBakeTransforms;
 
@@ -66,8 +69,9 @@ namespace COLLADAMaya
         static bool mExportPolygonMeshes;
         static bool mExportLights;
         static bool mExportCameras;
-        static bool mExportJointsAndSkin;
-        static bool mExportAnimations;
+		static bool mExportJoints;
+		static bool mExportSkin;
+		static bool mExportAnimations;
 		static bool mExportOptimizedBezierAnimations;
         static bool mExportInvisibleNodes;
         static bool mExportDefaultCameras;
@@ -110,6 +114,7 @@ namespace COLLADAMaya
         /****************************/
         /** General export options  */
         /****************************/
+		static bool exportLOD();
 
         /** Should the transforms be baked into a single matrix, as opposed to decomposed into 
         primitive collada transforms (e.g. translate, rotate, scale)? Default: FALSE */
@@ -138,7 +143,8 @@ namespace COLLADAMaya
         static bool exportPolygonMeshes();
         static bool exportLights();
         static bool exportCameras();
-        static bool exportJointsAndSkin();
+        static bool exportJoints();
+		static bool exportSkin();
         static bool exportAnimations();
 		static bool exportOptimizedBezierAnimations();
         static bool exportInvisibleNodes();

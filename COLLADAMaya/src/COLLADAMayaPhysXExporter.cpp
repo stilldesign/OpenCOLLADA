@@ -652,6 +652,11 @@ namespace COLLADAMaya
         return mPhysXDoc->findShape(targetName.asChar(), shapeName.asChar());
     }
 
+	PhysXXML::PxRigidStatic* PhysXExporter::findPxRigidStatic(uint64_t id)
+	{
+		return mPhysXDoc->findRigidStatic(id);
+	}
+
     PhysXXML::PxRigidStatic* PhysXExporter::findPxRigidStatic(const MObject& rigidBody)
     {
         MObject target;
@@ -665,6 +670,11 @@ namespace COLLADAMaya
     {
         return mPhysXDoc->findRigidStatic(name);
     }
+
+	PhysXXML::PxRigidDynamic* PhysXExporter::findPxRigidDynamic(uint64_t id)
+	{
+		return mPhysXDoc->findRigidDynamic(id);
+	}
 
     PhysXXML::PxRigidDynamic* PhysXExporter::findPxRigidDynamic(const MObject& rigidBody)
     {
@@ -681,6 +691,54 @@ namespace COLLADAMaya
         MString constraintName = constraintNode.fullPathName();
         return mPhysXDoc->findD6Joint(constraintName.asChar());
     }
+
+	MObject PhysXExporter::getNodeRigidBody(const MObject& node)
+	{
+		if (node.isNull())
+			return MObject::kNullObj;
+
+		class RigidBodyParser
+		{
+		public:
+			RigidBodyParser(PhysXExporter & exporter, const MObject & node)
+				: mPhysXExporter(exporter)
+				, mNode(node)
+			{}
+
+			bool operator()(SceneElement & element)
+			{
+				if (element.getType() == SceneElement::PHYSX_RIGID_BODY &&
+					element.getIsLocal())
+				{
+					const MObject & rigidBody = element.getNode();
+
+					MObject target;
+					mPhysXExporter.getRigidBodyTarget(rigidBody, target);
+
+					if (target == mNode)
+					{
+						mRigidBody = rigidBody;
+						return false;
+					}
+				}
+				return true;
+			}
+
+			const MObject & getRigidBody() const
+			{
+				return mRigidBody;
+			}
+
+		private:
+			PhysXExporter & mPhysXExporter;
+			const MObject & mNode;
+			MObject mRigidBody;
+		};
+
+		RigidBodyParser parser(*this, node);
+		parseSceneElements(parser);
+		return parser.getRigidBody();
+	}
 
     MObject PhysXExporter::getShapeRigidBody(const MObject& shape)
     {
@@ -1238,6 +1296,9 @@ namespace COLLADAMaya
             else if (profile == PhysXExporter::GetProfileXML()) {
                 exporter.exportShapePhysXXML(rigidBody, shape);
             }
+            else if (profile == PROFILE_MAYA) {
+                exporter.exportExtraAttributes(shape);
+            }
         }
 
     private:
@@ -1272,6 +1333,9 @@ namespace COLLADAMaya
         ShapeExtra(PhysXExporter& exporter, const MObject& rigidBody, const MObject& shape)
             : Element(exporter, CSWC::CSW_ELEMENT_EXTRA)
         {
+			if (PhysXExporter::HasExtraAttributes(shape)) {
+				exportProfile(rigidBody, shape, PROFILE_MAYA);
+			}
             exportProfile(rigidBody, shape, PhysXExporter::GetProfile());
             exportProfile(rigidBody, shape, PhysXExporter::GetProfileXML());
         }
@@ -1996,6 +2060,9 @@ namespace COLLADAMaya
             else if (profile == PhysXExporter::GetProfileXML()) {
                 exporter.exportRigidBodyPhysXXML(rigidBody);
             }
+			else if (profile == PROFILE_MAYA) {
+				exporter.exportExtraAttributes(rigidBody);
+			}
         }
 
     private:
@@ -2048,6 +2115,9 @@ namespace COLLADAMaya
         RigidBodyExtra(PhysXExporter& exporter, const MObject & rigidBody)
             : Element(exporter, CSWC::CSW_ELEMENT_EXTRA)
         {
+			if (PhysXExporter::HasExtraAttributes(rigidBody)) {
+				exportProfile(rigidBody, PROFILE_MAYA);
+			}
             exportProfile(rigidBody, PhysXExporter::GetProfile());
             exportProfile(rigidBody, PhysXExporter::GetProfileXML());
         }
@@ -2101,39 +2171,16 @@ namespace COLLADAMaya
     private:
         void exportRotateTranslate(const MObject & rigidConstraint)
         {
-            // get attached rigid body (parent)
-            MObject ref;
-            PhysXExporter::GetPluggedObject(rigidConstraint, ATTR_RIGID_BODY_1, ref);
+			PhysXXML::PxD6Joint* pxJoint = getPhysXExporter().findPxD6Joint(rigidConstraint);
+			if (!pxJoint)
+				return;
 
-            MMatrix refLocalToWorld = MMatrix::identity;
-            if (!ref.isNull())
-            {
-                MDagPath refDagPath;
-                MDagPath::getAPathTo(ref, refDagPath);
-                refLocalToWorld = refDagPath.inclusiveMatrix();
-            }
+			MVector translation = pxJoint->localPose.eActor0.translation;
+			MEulerRotation rotation;
+			rotation = pxJoint->localPose.eActor0.rotation;
 
-            MDagPath constraintDagPath;
-            MDagPath::getAPathTo(rigidConstraint, constraintDagPath);
-
-            MMatrix constraintLocalToWorld = constraintDagPath.inclusiveMatrix();
-            MMatrix constraintLocalToRef = constraintLocalToWorld * refLocalToWorld.inverse();
-
-            MTransformationMatrix constraintLocalToRefTM(constraintLocalToRef);
-            MVector translation = constraintLocalToRefTM.getTranslation(MSpace::kTransform);
-            double angles[3];
-            MTransformationMatrix::RotationOrder rotationOrder;
-            constraintLocalToRefTM.getRotation(angles, rotationOrder);
-            MEulerRotation rotation;
-            rotation.x = angles[0];
-            rotation.y = angles[1];
-            rotation.z = angles[2];
-            rotation.order = static_cast<MEulerRotation::RotationOrder>(
-                static_cast<int>(rotationOrder)-MTransformationMatrix::kXYZ + MEulerRotation::kXYZ
-                );
-
-            getPhysXExporter().exportTranslation(translation, ATTR_TRANSLATE);
-            getPhysXExporter().exportRotation(rotation, ATTR_ROTATE);
+			getPhysXExporter().exportTranslationWithoutConversion(translation, ATTR_TRANSLATE);
+			getPhysXExporter().exportRotation(rotation, ATTR_ROTATE);
         }
     };
 
@@ -2152,86 +2199,13 @@ namespace COLLADAMaya
     private:
         void exportRotateTranslate(const MObject & rigidConstraint)
         {
-            // get attached rigid body (child)
-            MObject attachment;
-            PhysXExporter::GetPluggedObject(rigidConstraint, ATTR_RIGID_BODY_2, attachment);
+			PhysXXML::PxD6Joint* pxJoint = getPhysXExporter().findPxD6Joint(rigidConstraint);
+			MVector translation = pxJoint->localPose.eActor1.translation;
+			MEulerRotation rotation;
+			rotation = pxJoint->localPose.eActor1.rotation;
 
-            MDagPath constraintDagPath;
-            MDagPath attachmentDagPath;
-            
-            MDagPath::getAPathTo(rigidConstraint, constraintDagPath);
-            MDagPath::getAPathTo(attachment, attachmentDagPath);
-
-            MMatrix constraintLocalToWorld = constraintDagPath.inclusiveMatrix();
-            MMatrix attachmentLocalToWorld = attachmentDagPath.inclusiveMatrix();
-
-            MTransformationMatrix constraintLocalToWorldTM(constraintLocalToWorld);
-            MTransformationMatrix attachmentLocalToWorldTM(attachmentLocalToWorld);
-            
-            int dummy = 0;
-            MString orientationMode;
-            DagHelper::getPlugValue(rigidConstraint, ATTR_ORIENTATION_MODE, dummy, orientationMode);
-            if (orientationMode == TARGET_ORIGIN)
-            {
-                // World space target origin
-                MVector targetOrigin = attachmentLocalToWorldTM.translation(MSpace::kTransform);
-
-                // World space constraint origin
-                MVector constraintOrigin = constraintLocalToWorldTM.translation(MSpace::kTransform);
-
-                MVector x = targetOrigin - constraintOrigin;
-
-                // if target origin and constraint origin are at the same place, we'll get wrong results
-                if (x.length() < getPhysXExporter().getDocumentExporter().getTolerance()) {
-                    MGlobal::displayWarning("constraint origin and target origin too close");
-                }
-
-                x.normalize();
-
-                MVector z = constraintLocalToWorld[2];
-                
-                MVector y = z ^ x;
-                y.normalize();
-
-                z = x ^ y;
-                z.normalize();
-                
-                MMatrix adjustedConstraintLocalToWorld = MMatrix::identity;
-                adjustedConstraintLocalToWorld(0, 0) = x.x;
-                adjustedConstraintLocalToWorld(0, 1) = x.y;
-                adjustedConstraintLocalToWorld(0, 2) = x.z;
-                adjustedConstraintLocalToWorld(1, 0) = y.x;
-                adjustedConstraintLocalToWorld(1, 1) = y.y;
-                adjustedConstraintLocalToWorld(1, 2) = y.z;
-                adjustedConstraintLocalToWorld(2, 0) = z.x;
-                adjustedConstraintLocalToWorld(2, 1) = z.y;
-                adjustedConstraintLocalToWorld(2, 2) = z.z;
-                adjustedConstraintLocalToWorld(3, 0) = constraintOrigin.x;
-                adjustedConstraintLocalToWorld(3, 1) = constraintOrigin.y;
-                adjustedConstraintLocalToWorld(3, 2) = constraintOrigin.z;
-
-                MMatrix constraintLocalToAttachment = adjustedConstraintLocalToWorld * attachmentLocalToWorld.inverse();
-                MTransformationMatrix constraintLocalToAttachmentTM(constraintLocalToAttachment);
-                MVector translation = constraintLocalToAttachmentTM.getTranslation(MSpace::kTransform);
-
-                double angles[3];
-                MTransformationMatrix::RotationOrder rotationOrder;
-                constraintLocalToAttachmentTM.getRotation(angles, rotationOrder);
-                MEulerRotation rotation;
-                rotation.x = angles[0];
-                rotation.y = angles[1];
-                rotation.z = angles[2];
-                rotation.order = static_cast<MEulerRotation::RotationOrder>(
-                    static_cast<int>(rotationOrder)-MTransformationMatrix::kXYZ + MEulerRotation::kXYZ
-                    );
-
-                getPhysXExporter().exportTranslation(translation, ATTR_TRANSLATE);
-                getPhysXExporter().exportRotation(rotation, ATTR_ROTATE);
-            }
-            else if (orientationMode == CENTERED)
-            {
-                // TODO
-            }
+			getPhysXExporter().exportTranslationWithoutConversion(translation, ATTR_TRANSLATE);
+			getPhysXExporter().exportRotation(rotation, ATTR_ROTATE);
         }
     };
 
@@ -2248,6 +2222,9 @@ namespace COLLADAMaya
             else if (profile == PhysXExporter::GetProfileXML()) {
                 exporter.exportRigidConstraintPhysXXML(rigidConstraint);
             }
+			else if (profile == PROFILE_MAYA) {
+				exporter.exportExtraAttributes(rigidConstraint);
+			}
         }
 
     private:
@@ -2328,6 +2305,9 @@ namespace COLLADAMaya
         RigidConstraintExtra(PhysXExporter& exporter, const MObject & rigidConstraint)
             : Element(exporter, CSWC::CSW_ELEMENT_EXTRA)
         {
+			if (PhysXExporter::HasExtraAttributes(rigidConstraint)) {
+				exportTechnique(rigidConstraint, PROFILE_MAYA);
+			}
             exportTechnique(rigidConstraint, PhysXExporter::GetProfile());
             exportTechnique(rigidConstraint, PhysXExporter::GetProfileXML());
         }
@@ -2359,8 +2339,23 @@ namespace COLLADAMaya
     private:
         void exportRefAttachment(const MObject & rigidConstraint)
         {
-            MObject rigidBody;
-            PhysXExporter::GetPluggedObject(rigidConstraint, ATTR_RIGID_BODY_1, rigidBody);
+			PhysXXML::PxD6Joint* pxJoint = getPhysXExporter().findPxD6Joint(rigidConstraint);
+			if (!pxJoint)
+				return;
+			PhysXXML::PxRigidDynamic* pxRigidDynamic = getPhysXExporter().findPxRigidDynamic(pxJoint->actors.actor0.actor0);
+			PhysXXML::PxRigidStatic* pxRigidStatic = getPhysXExporter().findPxRigidStatic(pxJoint->actors.actor0.actor0);
+			
+			MObject target;
+			if (pxRigidDynamic)
+			{
+				target = DagHelper::getNode(pxRigidDynamic->name.name.c_str());
+			}
+			else if (pxRigidStatic)
+			{
+				target = DagHelper::getNode(pxRigidStatic->name.name.c_str());
+			}
+
+			MObject rigidBody = getPhysXExporter().getNodeRigidBody(target);
 
             URI rigidBodyURI;
             if (rigidBody.isNull())
@@ -2381,8 +2376,23 @@ namespace COLLADAMaya
 
         void exportAttachment(const MObject & rigidConstraint)
         {
-            MObject rigidBody;
-            PhysXExporter::GetPluggedObject(rigidConstraint, ATTR_RIGID_BODY_2, rigidBody);
+			PhysXXML::PxD6Joint* pxJoint = getPhysXExporter().findPxD6Joint(rigidConstraint);
+			if (!pxJoint)
+				return;
+			PhysXXML::PxRigidDynamic* pxRigidDynamic = getPhysXExporter().findPxRigidDynamic(pxJoint->actors.actor1.actor1);
+			PhysXXML::PxRigidStatic* pxRigidStatic = getPhysXExporter().findPxRigidStatic(pxJoint->actors.actor1.actor1);
+
+			MObject target;
+			if (pxRigidDynamic)
+			{
+				target = DagHelper::getNode(pxRigidDynamic->name.name.c_str());
+			}
+			else if (pxRigidStatic)
+			{
+				target = DagHelper::getNode(pxRigidStatic->name.name.c_str());
+			}
+
+			MObject rigidBody = getPhysXExporter().getNodeRigidBody(target);
 
             MDagPath rigidBodyDagPath;
             MDagPath::getAPathTo(rigidBody, rigidBodyDagPath);
@@ -3370,7 +3380,7 @@ namespace COLLADAMaya
         // Export to .xml format first using PhysX plugin exporter.
         // Produced file contains information not accessible with Maya API.
         if (!mPhysXDoc) {
-            MGlobal::displayWarning("Can't generate PhysX XML data. PhysX will not be exported.");
+            MGlobal::displayError("Can't generate PhysX XML data. PhysX will not be exported.");
             return false;
         }
 
@@ -3403,6 +3413,16 @@ namespace COLLADAMaya
     {
         return mDocumentExporter;
     }
+
+	void PhysXExporter::exportTranslationWithoutConversion(const MVector & translation, const String & sid)
+	{
+		if (!(COLLADABU::Math::Utils::equalsZero(translation.x, mDocumentExporter.getTolerance()) &&
+			COLLADABU::Math::Utils::equalsZero(translation.y, mDocumentExporter.getTolerance()) &&
+			COLLADABU::Math::Utils::equalsZero(translation.z, mDocumentExporter.getTolerance())))
+		{
+			Translate(*this, translation, sid);
+		}
+	}
 
     void PhysXExporter::exportTranslation(const MVector & translation, const String & sid)
     {
@@ -3447,6 +3467,160 @@ namespace COLLADAMaya
         AttributeExporter attributeExporter(*this, attributes);
         MFnDependencyNode fnDependencyNode(object);
         AttributeParser::parseAttributes(fnDependencyNode, attributeExporter);
+    }
+
+	namespace local
+	{
+		class ExtraAttributeExporter : public AttributeParser
+		{
+		public:
+			ExtraAttributeExporter(COLLADASW::StreamWriter& streamWriter, const MObject & obj)
+				: mStreamWriter(streamWriter)
+				, mObject(obj)
+			{}
+
+		private:
+			COLLADASW::StreamWriter & mStreamWriter;
+			MObject mObject;
+
+		protected:
+			virtual bool onBeforeAttribute(MFnDependencyNode & node, MObject & attr) override
+			{
+				MStatus status;
+				MFnAttribute fnAttr(attr, &status);
+				if (!status) return false;
+
+				MString attrName = fnAttr.name(&status);
+				if (!status) return false;
+
+				bool isDynamic = fnAttr.isDynamic(&status);
+				if (!status) return false;
+
+				if (!isDynamic)
+					return false;
+
+				bool isHidden = fnAttr.isHidden(&status);
+				if (!status) return false;
+
+				if (isHidden)
+					return false;
+
+				return true;
+			}
+
+			template<typename ValueType>
+			void exportExtraAttribute(const String & name, const String & type, const ValueType & value)
+			{
+				mStreamWriter.openElement(CSWC::CSW_ELEMENT_PARAM);
+				mStreamWriter.appendAttribute(CSWC::CSW_ATTRIBUTE_NAME, name);
+				mStreamWriter.appendAttribute(CSWC::CSW_ATTRIBUTE_TYPE, type);
+				mStreamWriter.appendValues(value);
+				mStreamWriter.closeElement();
+			}
+
+			template<typename ValueType>
+			void exportExtraAttribute(const String & name, const String & type, const ValueType & value0, const ValueType & value1)
+			{
+				mStreamWriter.openElement(CSWC::CSW_ELEMENT_PARAM);
+				mStreamWriter.appendAttribute(CSWC::CSW_ATTRIBUTE_NAME, name);
+				mStreamWriter.appendAttribute(CSWC::CSW_ATTRIBUTE_TYPE, type);
+				mStreamWriter.appendValues(value0, value1);
+				mStreamWriter.closeElement();
+			}
+
+			template<typename ValueType>
+			void exportExtraAttribute(const String & name, const String & type, const ValueType & value0, const ValueType & value1, const ValueType & value2)
+			{
+				mStreamWriter.openElement(CSWC::CSW_ELEMENT_PARAM);
+				mStreamWriter.appendAttribute(CSWC::CSW_ATTRIBUTE_NAME, name);
+				mStreamWriter.appendAttribute(CSWC::CSW_ATTRIBUTE_TYPE, type);
+				mStreamWriter.appendValues(value0, value1, value2);
+				mStreamWriter.closeElement();
+			}
+
+			template<typename ValueType>
+			void exportExtraAttribute(const String & name, const String & type, const ValueType & value0, const ValueType & value1, const ValueType & value2, const ValueType & value3)
+			{
+				mStreamWriter.openElement(CSWC::CSW_ELEMENT_PARAM);
+				mStreamWriter.appendAttribute(CSWC::CSW_ATTRIBUTE_NAME, name);
+				mStreamWriter.appendAttribute(CSWC::CSW_ATTRIBUTE_TYPE, type);
+				mStreamWriter.appendValues(value0, value1, value2, value3);
+				mStreamWriter.closeElement();
+			}
+
+			virtual void onBoolean(MPlug & plug, const MString & name, bool value) override
+			{
+				exportExtraAttribute(name.asChar(), CSWC::CSW_VALUE_TYPE_BOOL, value);
+			}
+
+			virtual void onInteger(MPlug & plug, const MString & name, int value) override
+			{
+				exportExtraAttribute(name.asChar(), CSWC::CSW_VALUE_TYPE_INT, value);
+			}
+
+			virtual void onInteger2(MPlug & plug, const MString & name, int value[2]) override
+			{
+				exportExtraAttribute(name.asChar(), CSWC::CSW_VALUE_TYPE_INT2, value[0], value[1]);
+			}
+
+			virtual void onInteger3(MPlug & plug, const MString & name, int value[3]) override
+			{
+				exportExtraAttribute(name.asChar(), CSWC::CSW_VALUE_TYPE_INT3, value[0], value[1], value[2]);
+			}
+
+			virtual void onFloat(MPlug & plug, const MString & name, float value) override
+			{
+				exportExtraAttribute(name.asChar(), CSWC::CSW_VALUE_TYPE_FLOAT, value);
+			}
+
+			virtual void onFloat2(MPlug & plug, const MString & name, float value[2]) override
+			{
+				exportExtraAttribute(name.asChar(), CSWC::CSW_VALUE_TYPE_FLOAT2, value[0], value[1]);
+			}
+
+			virtual void onFloat3(MPlug & plug, const MString & name, float value[3]) override
+			{
+				exportExtraAttribute(name.asChar(), CSWC::CSW_VALUE_TYPE_FLOAT3, value[0], value[1], value[2]);
+			}
+
+			virtual void onDouble(MPlug & plug, const MString & name, double value) override
+			{
+				exportExtraAttribute(name.asChar(), CSWC::CSW_VALUE_TYPE_DOUBLE, value);
+			}
+
+			virtual void onDouble2(MPlug & plug, const MString & name, double value[2]) override
+			{
+				exportExtraAttribute(name.asChar(), CSWC::CSW_VALUE_TYPE_DOUBLE2, value[0], value[1]);
+			}
+
+			virtual void onDouble3(MPlug & plug, const MString & name, double value[3]) override
+			{
+				exportExtraAttribute(name.asChar(), CSWC::CSW_VALUE_TYPE_DOUBLE3, value[0], value[1], value[2]);
+			}
+
+			virtual void onDouble4(MPlug & plug, const MString & name, double value[4]) override
+			{
+				exportExtraAttribute(name.asChar(), CSWC::CSW_VALUE_TYPE_DOUBLE4, value[0], value[1], value[2], value[3]);
+			}
+
+			virtual void onString(MPlug & plug, const MString & name, const MString & value) override
+			{
+				exportExtraAttribute(name.asChar(), CSWC::CSW_VALUE_TYPE_STRING, value.asChar());
+			}
+
+			virtual void onEnum(MPlug & plug, const MString & name, int enumValue, const MString & enumName) override
+			{
+				// TODO export all possible enum values to be able to re-import them?
+				exportExtraAttribute(name.asChar(), CSWC::CSW_VALUE_TYPE_STRING, COLLADABU::StringUtils::translateToXML(String(enumName.asChar())));
+			}
+		};
+	}
+
+    void PhysXExporter::exportExtraAttributes(const MObject & object)
+    {
+        local::ExtraAttributeExporter extraAttributeExporter(mStreamWriter, object);
+		MFnDependencyNode node(object);
+        AttributeParser::parseAttributes(node, extraAttributeExporter);
     }
 
     void PhysXExporter::exportMaterialPhysXXML(const MObject& rigidBody)
@@ -3589,6 +3763,60 @@ namespace COLLADAMaya
     {
         return mProfileXML;
     }
+
+	namespace local
+	{
+		class ExtraAttributeParser : public AttributeParser
+		{
+		public:
+			ExtraAttributeParser(const MObject & obj)
+				: mObject(obj)
+				, mHasExtraAttributes(false)
+			{}
+
+			bool hasExtraAttributes() const { return mHasExtraAttributes; }
+
+		private:
+			MObject mObject;
+			bool mHasExtraAttributes;
+
+		protected:
+			virtual bool onBeforeAttribute(MFnDependencyNode & node, MObject & attr) override
+			{
+				MStatus status;
+				MFnAttribute fnAttr(attr, &status);
+				if (!status) return false;
+
+				MString attrName = fnAttr.name(&status);
+				if (!status) return false;
+
+				bool isDynamic = fnAttr.isDynamic(&status);
+				if (!status) return false;
+
+				if (!isDynamic)
+					return false;
+
+				bool isHidden = fnAttr.isHidden(&status);
+				if (!status) return false;
+
+				if (isHidden)
+					return false;
+
+				mHasExtraAttributes = true;
+
+				// No need to continue parsing
+				return false;
+			}
+		};
+	}
+
+	bool PhysXExporter::HasExtraAttributes(const MObject & object)
+	{
+		local::ExtraAttributeParser parser(object);
+		MFnDependencyNode node(object);
+		AttributeParser::parseAttributes(node, parser);
+		return parser.hasExtraAttributes();
+	}
 
     const String & PhysXExporter::findColladaId(const String & mayaId)
     {

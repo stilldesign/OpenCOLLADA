@@ -2202,7 +2202,7 @@ namespace COLLADAMaya
                 for (size_t j = 0; j < physX30Collection.rigidDynamics.size(); ++j) {
                     if (i != j &&
                         physX30Collection.rigidDynamics[i].name.name == physX30Collection.rigidDynamics[j].name.name) {
-                        MGlobal::displayWarning((String("Duplicated dynamic rigid body name: ") + physX30Collection.rigidDynamics[i].name.name).c_str());
+                        MGlobal::displayError((String("Duplicated dynamic rigid body name: ") + physX30Collection.rigidDynamics[i].name.name).c_str());
                         return false;
                     }
                 }
@@ -2213,7 +2213,7 @@ namespace COLLADAMaya
                         if (si !=  sj &&
                             physX30Collection.rigidDynamics[i].shapes.shapes[si].name.name ==
                             physX30Collection.rigidDynamics[i].shapes.shapes[sj].name.name) {
-                            MGlobal::displayWarning((String("Duplicated shape name: ") + physX30Collection.rigidDynamics[i].shapes.shapes[si].name.name).c_str());
+                            MGlobal::displayError((String("Duplicated shape name: ") + physX30Collection.rigidDynamics[i].shapes.shapes[si].name.name).c_str());
                             return false;
                         }
                     }
@@ -2224,7 +2224,7 @@ namespace COLLADAMaya
                 for (size_t j = 0; j < physX30Collection.rigidStatics.size(); ++j) {
                     if (i != j &&
                         physX30Collection.rigidStatics[i].name.name == physX30Collection.rigidStatics[j].name.name) {
-                        MGlobal::displayWarning((String("Duplicated static rigid body name: ") + physX30Collection.rigidStatics[i].name.name).c_str());
+                        MGlobal::displayError((String("Duplicated static rigid body name: ") + physX30Collection.rigidStatics[i].name.name).c_str());
                         return false;
                     }
                 }
@@ -2235,7 +2235,7 @@ namespace COLLADAMaya
                         if (si !=  sj &&
                             physX30Collection.rigidStatics[i].shapes.shapes[si].name.name ==
                             physX30Collection.rigidStatics[i].shapes.shapes[sj].name.name) {
-                            MGlobal::displayWarning((String("Duplicated shape name: ") + physX30Collection.rigidStatics[i].shapes.shapes[si].name.name).c_str());
+                            MGlobal::displayError((String("Duplicated shape name: ") + physX30Collection.rigidStatics[i].shapes.shapes[si].name.name).c_str());
                             return false;
                         }
                     }
@@ -2246,7 +2246,7 @@ namespace COLLADAMaya
                 for (size_t j = 0; j < physX30Collection.D6Joints.size(); ++j) {
                     if (i != j &&
                         physX30Collection.D6Joints[i].name.name == physX30Collection.D6Joints[j].name.name) {
-                        MGlobal::displayWarning((String("Duplicated constraint name: ") + physX30Collection.D6Joints[i].name.name).c_str());
+                        MGlobal::displayError((String("Duplicated constraint name: ") + physX30Collection.D6Joints[i].name.name).c_str());
                         return false;
                     }
                 }
@@ -2308,6 +2308,17 @@ namespace COLLADAMaya
             return NULL;
         }
 
+		PxRigidStatic* PhysXDoc::findRigidStatic(uint64_t id)
+		{
+			for (size_t i = 0; i < physX30Collection.rigidStatics.size(); ++i) {
+				PxRigidStatic& rigid = physX30Collection.rigidStatics[i];
+				if (rigid.id.id == id) {
+					return &rigid;
+				}
+			}
+			return NULL;
+		}
+
         PxRigidStatic* PhysXDoc::findRigidStatic(const String& bodyName)
         {
             for (size_t i = 0; i < physX30Collection.rigidStatics.size(); ++i) {
@@ -2318,6 +2329,17 @@ namespace COLLADAMaya
             }
             return NULL;
         }
+
+		PxRigidDynamic* PhysXDoc::findRigidDynamic(uint64_t id)
+		{
+			for (size_t i = 0; i < physX30Collection.rigidDynamics.size(); ++i) {
+				PxRigidDynamic& rigid = physX30Collection.rigidDynamics[i];
+				if (rigid.id.id == id) {
+					return &rigid;
+				}
+			}
+			return NULL;
+		}
 
         PxRigidDynamic* PhysXDoc::findRigidDynamic(const String& bodyName)
         {

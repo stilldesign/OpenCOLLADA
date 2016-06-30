@@ -448,6 +448,15 @@ namespace COLLADAMaya
 									std::vector<float>::iterator itFound;
 
 									itFound = find(times.begin(), times.end(), stepTime);
+									
+									if (ExportOptions::bakeTransforms() && interpolationType == COLLADASW::LibraryAnimations::STEP)
+									{
+										if (itFound != times.begin())
+											stepTime = *(itFound - 1);
+										else
+											continue;
+									}
+
 									{
 										std::vector<float>::iterator itLower = lower_bound(times.begin(), times.end(), stepTime);
 										int element = (int)(itLower - times.begin());
@@ -635,6 +644,9 @@ namespace COLLADAMaya
 							PV(14, 2, 3);
 							PV(15, 3, 3);
 #undef PV
+							// 1 Frame Animation
+							if (sampleCount == 1)
+								part.isAnimated = true;
 
 #define PD(a) part.values[16*i+a] != part.values[16*(i-1)+a]
 							if (i > 0 && (PD(0) || PD(1) || PD(2) || PD(3) || PD(4)

@@ -203,7 +203,7 @@ namespace COLLADAMaya
             ControllerStackItem* item = stack[i];
             if ( item->isSkin )
             {
-                if ( ExportOptions::exportJointsAndSkin() && !alreadyHasSkin )
+				if (ExportOptions::exportJoints() && !alreadyHasSkin)
                 {
                     // Correctly avoid chained joint-clusters: only export the first
                     // joint cluster which exports the subsequent joint-clusters with it.
@@ -552,7 +552,8 @@ namespace COLLADAMaya
         createJoints ( &skinController );
 
         // Write the data into the collada document.
-        writeSkinController ( skinTarget, skinController );
+		if (!((ExportOptions::exportAnimations()) && (ExportOptions::exportJoints() && !ExportOptions::exportSkin())))
+			writeSkinController ( skinTarget, skinController );
 
     }
 
@@ -779,7 +780,7 @@ namespace COLLADAMaya
             MDagPath dagPath = influences[i];
 
             SkinControllerJoint &joint = joints[i];
-            joint.first = mDocumentExporter->dagPathToColladaId ( dagPath );
+            joint.first = mDocumentExporter->dagPathToColladaSid ( dagPath );
             joint.second = skinController->getBindPoses()[i];
         }
     }
@@ -803,15 +804,15 @@ namespace COLLADAMaya
             MStatus status;
             MPlug plug = ShaderHelper::findPlug(MFnDependencyNode(cluster), ATTR_INPUt, &status);
             if (status != MStatus::kSuccess)
-            { MGlobal::displayWarning("Unable to get joint cluster input plug."); return; }
+            { MGlobal::displayError("Unable to get joint cluster input plug."); return; }
 
             plug = plug.elementByLogicalIndex(clusterIndex, &status);
             if (status != MStatus::kSuccess)
-            { MGlobal::displayWarning("Unable to get joint cluster input plug first element."); return; }
+            { MGlobal::displayError("Unable to get joint cluster input plug first element."); return; }
 
             plug = DagHelper::getChildPlug(plug, ATTR_INPUT_GEOMETRY, &status); // "inputGeometry"
             if (status != MStatus::kSuccess)
-            { MGlobal::displayWarning("Unable to get joint cluster input geometry plug."); return; }
+            { MGlobal::displayError("Unable to get joint cluster input geometry plug."); return; }
 
             cluster = DagHelper::getSourceNodeConnectedTo(plug);
         }
