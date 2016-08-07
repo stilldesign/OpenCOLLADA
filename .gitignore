@@ -21,3 +21,6 @@ CMakeScripts/
 /lib/
 /COLLADAMax/scripts/.COLLADAMaxVersionInfo.h
 /COLLADAMax/COLLADAMax.VC.opendb
+
+*.opendb
+COLLADAMax.VC.db
