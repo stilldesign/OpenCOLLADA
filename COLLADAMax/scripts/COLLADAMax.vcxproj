@@ -987,6 +987,8 @@
     <IntDir>..\obj\win\$(Platform)\$(Configuration)\</IntDir>
     <LinkIncremental>true</LinkIncremental>
     <PostBuildEventUseInBuild>false</PostBuildEventUseInBuild>
+    <IncludePath>C:\Program Files\Autodesk\3ds Max 2017 SDK\maxsdk\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files\Autodesk\3ds Max 2017 SDK\maxsdk\lib\x64\Release;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug_Max2013_static|Win32'">
     <OutDir>..\bin\win\$(Platform)\$(Configuration)\</OutDir>
